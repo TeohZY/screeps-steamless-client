@@ -114,6 +114,18 @@ npx screeps-steamless-client \
   --internal_backend http://screeps:21025
 ```
 
+For public HTTPS deployments, set `--backend` to the browser-facing origin and `--internal_backend` to the private
+server URL reachable from this proxy. This keeps Steam OpenID return URLs public while proxying API traffic internally:
+
+```sh
+npx screeps-steamless-client \
+  --backend https://screeps-client.example.com \
+  --internal_backend http://screeps:21025 \
+  --public_hostname screeps-client.example.com \
+  --public_port 443 \
+  --public_tls
+```
+
 ## Options
 
 - `--package <path>`: path to `package.nw`.

@@ -203,6 +203,15 @@ localStorage.backendDomain = ${JSON.stringify(info.backend)};
 localStorage.tutorialVisited = 'true';
 localStorage.placeSpawnTutorialAsked = '1';
 localStorage.tipTipOfTheDay = '-1';
+try {
+	const authCookie = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+	if (authCookie) {
+		const token = decodeURIComponent(authCookie[1]);
+		if (localStorage.auth !== JSON.stringify(token)) {
+			localStorage.auth = JSON.stringify(token);
+		}
+	}
+} catch (err) {}
 if (${JSON.stringify(argv.guest)}) {
 	if (
 		(localStorage.auth === 'null' && localStorage.prevAuth === 'null') ||
@@ -251,6 +260,7 @@ addEventListener('message', event => {
 			body = body.replace(/<script[^>]*>[^>]*google[^>]*<\/script>/g, '<script>ga = new Proxy(() => ga, { get: () => ga })</script>');
 			body = body.replace(/<script[^>]*>[^>]*mxpnl[^>]*<\/script>/g, '<script>mixpanel = new Proxy(() => mixpanel, { get: () => mixpanel })</script>');
 			body = body.replace(/<script[^>]*>[^>]*twttr[^>]*<\/script>/g, '<script>twttr = new Proxy(() => twttr, { get: () => twttr })</script>');
+			body = body.replace(/<script[^>]*>[^>]*reddit[^>]*<\/script>/g, '<script>rdt = new Proxy(() => rdt, { get: () => rdt })</script>');
 			body = body.replace(/<script[^>]*>[^>]*onRecaptchaLoad[^>]*<\/script>/g, '<script>function onRecaptchaLoad(){}</script>');
 			return body;
 		} else if (path === 'config.js') {
