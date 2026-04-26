@@ -1,9 +1,10 @@
 # Screeps Steamless Client
 
 ## About
-This package surfaces the [Screeps](https://screeps.com/) client in the browser of your choice for
-users who have purchased the [official Screeps
-app](https://store.steampowered.com/app/464350/Screeps/) on Steam.
+This package serves the [Screeps World](https://store.steampowered.com/app/464350/Screeps/) Steam
+client in the browser of your choice. It works by reading the `package.nw` file from a legally
+installed Steam copy and proxying the client to the official server, PTR, seasonal worlds, or a
+private/community server.
 
 I personally run into a lot of issues with the official client, especially on macOS. The official
 client is simply an [NW.js](https://nwjs.io/) wrapper around an [AngularJS](https://angularjs.org/)
@@ -12,9 +13,9 @@ was based on Chrome 76 [July 2019] -- a two year old version. I made this packag
 experiencing frequent crashes in the official client, and I desired a native experience on my Apple
 M1-based computer.
 
-This client just serves up the Screeps client files which are already sitting in your Steam folder.
-It also adds some basic endpoints for authentication via Steam OpenID. For all intents and purposes
-it is the official client but running in the browser of your choice.
+The client files still come from your local Steam installation, so keep Screeps updated through
+Steam. Copying `package.nw` from another machine works, but you will need to refresh that copy when
+Steam ships a new client.
 
 
 ## Installation & Use
@@ -27,6 +28,10 @@ You must visit a specially crafted local URL in order to specify the server you 
 In order to connect to the official Screeps World server you would visit:
 http://localhost:8080/(https://screeps.com)/.
 
+PTR and seasonal worlds use the backend path:
+http://localhost:8080/(https://screeps.com/ptr)/ and
+http://localhost:8080/(https://screeps.com/season)/.
+
 In order to visit a local server running on port 21025 you would visit:
 http://localhost:8080/(http://localhost:21025)/. Note that Steam OpenId support is required on your
 local server which can be enabled with
@@ -37,22 +42,45 @@ The final "/" at the end of the URI is important - you'll receive an error if yo
 
 ### Locating Screeps World client
 
-This package require Screeps World to be installed. The package attempts to locate the game files automatically, but if it cannot be done, then you must provide the location of the file with the "--package" argument. For example:
+This package requires Screeps World to be installed. It now checks common Steam locations on macOS,
+Windows, Linux, WSL, Flatpak, and Snap installs. If it cannot find the file, provide it with
+`--package`:
 
-`npx screepers-steamless-client --package ~/Screeps/package.nw`
+`npx screeps-steamless-client --package ~/Screeps/package.nw`
 
 ### Configuring host interface and port
 
-By default the package listens for connections on localhost (127.0.0.1) and on port 8080. These can be changed with the `--host` and `--port` parameters respectively. If you are running the steamless client on the same machine as your browser, these default settings might be fine. However if you run the client on the same host as the screeps private server, then you may need to ensure that the package listens on the correct outward-facing network interface, rather than localhost. If you want the client to listen on all interfaces on Linux, then you can use 0.0.0.0 as the host. For example:
+By default the package listens on `localhost:8080`. Change the bind address with `--host` and
+`--port`. If the client runs behind Docker or a reverse proxy, set the public URL components so
+rewritten history URLs point at the address browsers can actually reach:
 
-`npx screepers-steamless-client --host 0.0.0.0`
+```
+npx screeps-steamless-client --host 0.0.0.0
+npx screeps-steamless-client --public_hostname screeps-client.example.com --public_port 443 --public_tls
+```
+
+Use `--internal_backend` when the backend address visible to the proxy is different from the backend
+address visible to the browser, for example inside Docker:
+
+`npx screeps-steamless-client --backend http://localhost:21025 --internal_backend http://screeps:21025`
+
+### Arguments
+
+- `--package <path>`: path to `package.nw`.
+- `--host <host>` and `--port <port>`: bind interface and port.
+- `--backend <url>`: proxy one backend directly instead of using the URL wrapper form.
+- `--internal_backend <url>`: backend URL used by the proxy process.
+- `--public_hostname <host>`, `--public_port <port>`, `--public_tls`: public browser-facing URL.
+- `--guest`: enable xxscreeps guest mode.
+- `--beautify`: format served JavaScript for debugging.
 
 ## Tips
-This client makes use of "guest mode" which is enabled by default in
-[xxscreeps](https://github.com/laverdet/xxscreeps/). This will provide you with a read-only view of
-the server when you are not signed in. The client will show you as signed in as user Guest and your
-icon will belong to the Invader user. To sign in with your Steam account you need to select "Sign
-Out" first, which will sign you out of Guest and bring you to the real login page. Click the Steam
-icon towards the bottom to sign-in with your Steam account and play the game as normal.
+Guest mode is now opt-in with `--guest`, matching current community client behavior. It is useful
+for [xxscreeps](https://github.com/laverdet/xxscreeps/) read-only browsing, but can get in the way
+of normal Steam OpenID login.
+
+The official Screeps documentation notes that the browser and Steam clients use undocumented HTTP
+endpoints. Third-party tools should prefer Screeps Auth Tokens for external automation, while this
+proxy should continue to forward normal browser client authentication traffic.
 
 ![Safari Example](./docs/safari.png)

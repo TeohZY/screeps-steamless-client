@@ -20,6 +20,8 @@
   "homepage": "https://github.com/laverdet/screeps-steamless-client#readme",
   "devDependencies": {
     "@laverdet/eslint-config": "github:laverdet/eslint-config#a12fa0a782425b584992fc937eb0db43642b560a",
+    "@typescript-eslint/eslint-plugin": "4.33.0",
+    "@typescript-eslint/parser": "4.33.0",
     "@types/argparse": "2.0.10",
     "@types/http-proxy": "1.17.7",
     "@types/js-beautify": "1.13.2",
@@ -27,6 +29,7 @@
     "@types/koa-conditional-get": "2.0.0",
     "@types/node": "16.4.13",
     "@types/node-fetch": "2.5.12",
+    "eslint": "7.32.0",
     "typescript": "4.3.5"
   },
   "dependencies": {

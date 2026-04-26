@@ -10,6 +10,7 @@
 		"module": "esnext",
 		"moduleResolution": "node",
 		"noImplicitOverride": true,
+		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
 		"target": "esnext",
