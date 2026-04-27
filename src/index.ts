@@ -203,14 +203,22 @@ localStorage.backendDomain = ${JSON.stringify(info.backend)};
 localStorage.tutorialVisited = 'true';
 localStorage.placeSpawnTutorialAsked = '1';
 localStorage.tipTipOfTheDay = '-1';
-try {
-	const authCookie = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-	if (authCookie) {
-		const token = decodeURIComponent(authCookie[1]);
-		if (localStorage.auth !== JSON.stringify(token)) {
-			localStorage.auth = JSON.stringify(token);
-		}
+function storeAuthToken(token) {
+	if (typeof token !== 'string' || !token || token === 'null' || token === 'guest') {
+		return false;
 	}
+	const stored = JSON.stringify(token);
+	if (localStorage.auth !== stored) {
+		localStorage.auth = stored;
+	}
+	return stored;
+}
+function readAuthCookie() {
+	const authCookie = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+	return authCookie ? decodeURIComponent(authCookie[1]) : undefined;
+}
+try {
+	storeAuthToken(readAuthCookie());
 } catch (err) {}
 if (${JSON.stringify(argv.guest)}) {
 	if (
@@ -230,6 +238,60 @@ if (${JSON.stringify(argv.guest)}) {
 		}
 	}, 1000);
 }
+// Private servers can issue short-lived auth tokens. Keep the last real token alive
+// and resync it from cookie/header/body so the client does not bounce back to login.
+let lastKnownToken = localStorage.auth;
+let authRefreshFailures = 0;
+function currentStoredToken() {
+	try {
+		const token = JSON.parse(localStorage.auth);
+		return typeof token === 'string' && token !== 'guest' && token !== 'null' ? token : undefined;
+	} catch (err) {}
+}
+function rememberCurrentToken() {
+	const token = currentStoredToken();
+	if (token) {
+		lastKnownToken = JSON.stringify(token);
+		authRefreshFailures = 0;
+	}
+}
+setInterval(() => {
+	rememberCurrentToken();
+	try {
+		storeAuthToken(readAuthCookie());
+		rememberCurrentToken();
+	} catch (err) {}
+}, 1000);
+setInterval(async () => {
+	let rawToken;
+	try {
+		rawToken = JSON.parse(lastKnownToken);
+	} catch (err) {}
+	if (!rawToken || rawToken === 'guest' || rawToken === 'null' || authRefreshFailures >= 3) {
+		return;
+	}
+	try {
+		const resp = await fetch(${JSON.stringify(clientBasePath)} + 'api/auth/me', {
+			headers: { 'X-Token': rawToken },
+			credentials: 'same-origin',
+		});
+		const headerToken = resp.headers.get('X-Token');
+		if (storeAuthToken(headerToken)) {
+			rememberCurrentToken();
+			return;
+		}
+		if (resp.ok) {
+			const data = await resp.clone().json().catch(() => undefined);
+			if (storeAuthToken(data?.token ?? data?.auth?.token)) {
+				rememberCurrentToken();
+				return;
+			}
+		}
+		if (resp.status === 401 || resp.status === 403) {
+			authRefreshFailures += 1;
+		}
+	} catch (err) {}
+}, 45000);
 // The client will just fill this up with data until the application breaks.
 if (localStorage['users.code.activeWorld']?.length > 1024 * 1024) {
 	try {
@@ -238,6 +300,37 @@ if (localStorage['users.code.activeWorld']?.length > 1024 * 1024) {
 	} catch (err) {
 		delete localStorage['users.code.activeWorld']
 	}
+}
+// Prevent client-side redirects to screeps.com on private servers.
+if (${JSON.stringify(new URL(info.backend).hostname !== 'screeps.com')}) {
+	const isOfficialRedirect = url => {
+		try {
+			return new URL(url, location.href).hostname === 'screeps.com';
+		} catch (err) {
+			return false;
+		}
+	};
+	if (window.navigation) {
+		navigation.addEventListener('navigate', (event) => {
+			if (event.destination?.url && isOfficialRedirect(event.destination.url)) {
+				event.preventDefault();
+			}
+		});
+	}
+	try {
+		const _origAssign = window.location.assign;
+		window.location.assign = function(url) {
+			if (isOfficialRedirect(url)) return;
+			return _origAssign.call(window.location, url);
+		};
+	} catch (e) {}
+	try {
+		const _origReplace = window.location.replace;
+		window.location.replace = function(url) {
+			if (isOfficialRedirect(url)) return;
+			return _origReplace.call(window.location, url);
+		};
+	} catch (e) {}
 }
 // Send the user to map after login from /register
 addEventListener('message', event => {
