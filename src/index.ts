@@ -58,12 +58,57 @@ const argv = function() {
 }();
 
 const beautify = argv.beautify;
+const authCookieName = 'auth_token';
+
+const getCookieValue = (cookieHeader: string | undefined, name: string) => {
+	for (const cookie of cookieHeader?.split(';') ?? []) {
+		const [ key, ...value ] = cookie.trim().split('=');
+		if (key === name) {
+			return decodeURIComponent(value.join('='));
+		}
+	}
+};
+
+const authCookie = (token: string) => [
+	`${authCookieName}=${encodeURIComponent(token)}`,
+	'Path=/',
+	'SameSite=Lax',
+	argv.public_tls ? 'Secure' : '',
+].filter(Boolean).join('; ');
+
+type ProxyHeaders = Record<string, number | string | string[] | undefined>;
+
+const appendSetCookie = (headers: ProxyHeaders, cookie: string) => {
+	const existing = headers['set-cookie'];
+	headers['set-cookie'] = Array.isArray(existing) ?
+		[ ...existing, cookie ] :
+		existing ?
+			[ existing.toString(), cookie ] :
+			[ cookie ];
+};
+
+const restoreAuthHeader = (headers: ProxyHeaders) => {
+	if (headers['x-token']) {
+		return;
+	}
+	const token = getCookieValue(Array.isArray(headers.cookie) ? headers.cookie.join(';') : headers.cookie?.toString(), authCookieName);
+	if (token) {
+		headers['x-token'] = token;
+	}
+};
 
 // Create proxy
 const proxy = httpProxy.createProxyServer({
 	changeOrigin: true,
 });
 proxy.on('error', err => console.error(err));
+proxy.on('proxyRes', proxyRes => {
+	const tokenHeader = proxyRes.headers['x-token'];
+	const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+	if (typeof token === 'string' && token) {
+		appendSetCookie(proxyRes.headers, authCookie(token));
+	}
+});
 
 const getScreepsPackagePath = (steamPath: string) => {
 	const screepsPath = path.join(steamPath, 'steamapps', 'common', 'Screeps', 'package.nw');
@@ -472,6 +517,7 @@ koa.use(async(context, next) => {
 		if (info) {
 			context.respond = false;
 			context.req.url = info.endpoint;
+			restoreAuthHeader(context.req.headers);
 			if (info.endpoint.startsWith('/api/auth')) {
 				const returnUrl = encodeURIComponent(info.backend);
 				const separator = info.endpoint.endsWith('?') ? '' : info.endpoint.includes('?') ? '&' : '?';
@@ -491,6 +537,7 @@ server.on('upgrade', (req, socket, head) => {
 	const info = extract(req.url!);
 	if (info && req.headers.upgrade?.toLowerCase() === 'websocket') {
 		req.url = info.endpoint;
+		restoreAuthHeader(req.headers);
 		proxy.ws(req, socket, head, {
 			target: argv.internal_backend ?? info.backend,
 		});
